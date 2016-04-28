@@ -79,5 +79,5 @@ if [ $? -eq 0 ]; then
     mv build $CIRCLE_ARTIFACTS
 else
     # Upload Linux build artifact to S3
-    ./scripts/build.py --package --version=$tag --upload
+    ./scripts/build.py --package --upload
 fi
