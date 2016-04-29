@@ -2,19 +2,24 @@ package internal
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 	"unicode"
 )
 
 const alphanum string = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+var timeoutErr = errors.New("Command timed out.")
 
 // Duration just wraps time.Duration
 type Duration struct {
@@ -138,4 +143,50 @@ func SnakeCase(in string) string {
 	}
 
 	return string(out)
+}
+
+// CombinedOutputTimeout runs the given command with the given timeout and
+// returns the combined output of stdout and stderr.
+// If the command times out, it attempts to kill the process.
+func CombinedOutputTimeout(c *exec.Cmd, timeout time.Duration) ([]byte, error) {
+	var b bytes.Buffer
+	c.Stdout = &b
+	c.Stderr = &b
+	if err := c.Start(); err != nil {
+		return nil, err
+	}
+	timer := time.NewTimer(timeout)
+	done := make(chan error)
+	go func() { done <- c.Wait() }()
+	select {
+	case err := <-done:
+		timer.Stop()
+		return b.Bytes(), err
+	case <-timer.C:
+		if err := c.Process.Kill(); err != nil {
+			log.Printf("FATAL error killing process: %s", err)
+		}
+		return b.Bytes(), timeoutErr
+	}
+}
+
+// RunTimeout runs the given command with the given timeout.
+// If the command times out, it attempts to kill the process.
+func RunTimeout(c *exec.Cmd, timeout time.Duration) error {
+	if err := c.Start(); err != nil {
+		return err
+	}
+	timer := time.NewTimer(timeout)
+	done := make(chan error)
+	go func() { done <- c.Wait() }()
+	select {
+	case err := <-done:
+		timer.Stop()
+		return err
+	case <-timer.C:
+		if err := c.Process.Kill(); err != nil {
+			log.Printf("FATAL error killing process: %s", err)
+		}
+		return timeoutErr
+	}
 }

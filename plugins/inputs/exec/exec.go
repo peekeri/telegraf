@@ -73,7 +73,11 @@ func AddNagiosState(exitCode error, acc telegraf.Accumulator) error {
 	return nil
 }
 
-func (c CommandRunner) Run(e *Exec, command string, acc telegraf.Accumulator) ([]byte, error) {
+func (c CommandRunner) Run(
+	e *Exec,
+	command string,
+	acc telegraf.Accumulator,
+) ([]byte, error) {
 	split_cmd, err := shellquote.Split(command)
 	if err != nil || len(split_cmd) == 0 {
 		return nil, fmt.Errorf("exec: unable to parse command, %s", err)
